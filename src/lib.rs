@@ -1,4 +1,13 @@
 #![cfg_attr(not(test), no_std)]
+use core::convert::TryInto;
+use embedded_graphics::{
+    drawable::Drawable,
+    pixelcolor::{Rgb565, Rgb888},
+    prelude::*,
+    primitives::Rectangle,
+    style::PrimitiveStyleBuilder,
+    DrawTarget,
+};
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
@@ -7,6 +16,8 @@ pub struct Plane<const N: usize> {
     next: [bool; N],
     width: usize,
     height: usize,
+    color: Rgb888,
+    magnification: i32,
 }
 
 impl<const N: usize> Plane<N> {
@@ -19,6 +30,21 @@ impl<const N: usize> Plane<N> {
             next: [false; N],
             width,
             height,
+            color: Rgb888::new(0, 255, 0),
+            magnification: 1,
+        })
+    }
+    pub fn from_magnification(width: usize, height: usize, magnification: i32) -> Option<Self> {
+        if N < ((width + 1) * (height + 1)).into() {
+            return None;
+        }
+        Some(Self {
+            board: [false; N],
+            next: [false; N],
+            width,
+            height,
+            color: Rgb888::new(0, 255, 0),
+            magnification,
         })
     }
     fn index(&self, x: usize, y: usize) -> usize {
@@ -44,8 +70,8 @@ impl<const N: usize> Plane<N> {
     }
     pub fn randomize(&mut self, seed: u64) {
         let mut rng = SmallRng::seed_from_u64(seed);
-        for x in 0..self.height {
-            for y in 0..self.width {
+        for y in 0..self.height {
+            for x in 0..self.width {
                 self.set(x, y, rng.gen::<bool>());
             }
         }
@@ -89,6 +115,37 @@ impl<const N: usize> Plane<N> {
             }
         }
         self.board = self.next;
+    }
+
+    pub fn draw<D: DrawTarget<Rgb565>>(&self, display: &mut D) -> Result<(), D::Error> {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let x_p: i32 = x.try_into().unwrap();
+                let y_p: i32 = y.try_into().unwrap();
+                let width = self.magnification - 1;
+                let point_left = Point::new(x_p * self.magnification, y_p * self.magnification);
+                let point_right = Point::new(
+                    x_p * self.magnification + width,
+                    y_p * self.magnification + width,
+                );
+                if self.point(x, y) {
+                    let style = PrimitiveStyleBuilder::new()
+                        .fill_color(self.color.into())
+                        .build();
+                    Rectangle::new(point_left, point_right)
+                        .into_styled(style)
+                        .draw(display)?;
+                } else {
+                    let style = PrimitiveStyleBuilder::new()
+                        .fill_color(Rgb565::BLACK)
+                        .build();
+                    Rectangle::new(point_left, point_right)
+                        .into_styled(style)
+                        .draw(display)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
