@@ -9,6 +9,7 @@ use eg::{pixelcolor::*, prelude::*, primitives::*, style::*};
 use embedded_game_of_life::Plane;
 use wio::hal::clock::GenericClockController;
 use wio::hal::delay::Delay;
+use wio::hal::trng::Trng;
 use wio::pac::{CorePeripherals, Peripherals};
 use wio::prelude::*;
 use wio::{entry, Pins};
@@ -26,9 +27,10 @@ fn main() -> ! {
     );
     let mut delay = Delay::new(core.SYST, &mut clocks);
     let mut sets = Pins::new(peripherals.PORT).split();
+    let trng = Trng::new(&mut peripherals.MCLK, peripherals.TRNG);
 
-    let mut plane = Plane::<65536>::from_magnification(80, 60, 4).unwrap();
-    plane.randomize(42);
+    let mut plane = Plane::<65536>::from_magnification(160, 120, 2).unwrap();
+    plane.randomize(trng.random_u64());
 
     // ディスプレイドライバを初期化する
     let (mut display, _backlight) = sets
@@ -53,7 +55,7 @@ fn main() -> ! {
     plane.draw(&mut display).unwrap();
 
     loop {
-        delay.delay_ms(100u16);
+        //delay.delay_ms(100u16);
         plane.tick();
         plane.draw(&mut display).unwrap();
     }

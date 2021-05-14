@@ -50,14 +50,21 @@ impl<const N: usize> Plane<N> {
     fn index(&self, x: usize, y: usize) -> usize {
         ((1 + y) * (self.width + 2) + 1 + x).into()
     }
-    pub fn point(&self, x: usize, y: usize) -> bool {
+    fn point(&self, x: usize, y: usize) -> bool {
+        self.board[self.index(x, y)]
+    }
+    fn changed(&self, x: usize, y: usize) -> Option<bool> {
         if self.width < x {
-            return false;
+            return Some(false);
         }
         if self.height < y {
-            return false;
+            return Some(false);
         }
-        self.board[self.index(x, y)]
+        let index = self.index(x, y);
+        if self.board[index] != self.next[index] {
+            return Some(self.board[index]);
+        }
+        None
     }
     fn set(&mut self, x: usize, y: usize, value: bool) {
         if self.width < x {
@@ -114,7 +121,7 @@ impl<const N: usize> Plane<N> {
                 self.next[index] = self.is_live(x, y);
             }
         }
-        self.board = self.next;
+        core::mem::swap(&mut self.board, &mut self.next);
     }
 
     pub fn draw<D: DrawTarget<Rgb565>>(&self, display: &mut D) -> Result<(), D::Error> {
@@ -128,20 +135,22 @@ impl<const N: usize> Plane<N> {
                     x_p * self.magnification + width,
                     y_p * self.magnification + width,
                 );
-                if self.point(x, y) {
-                    let style = PrimitiveStyleBuilder::new()
-                        .fill_color(self.color.into())
-                        .build();
-                    Rectangle::new(point_left, point_right)
-                        .into_styled(style)
-                        .draw(display)?;
-                } else {
-                    let style = PrimitiveStyleBuilder::new()
-                        .fill_color(Rgb565::BLACK)
-                        .build();
-                    Rectangle::new(point_left, point_right)
-                        .into_styled(style)
-                        .draw(display)?;
+                if let Some(p) = self.changed(x, y) {
+                    if p {
+                        let style = PrimitiveStyleBuilder::new()
+                            .fill_color(self.color.into())
+                            .build();
+                        Rectangle::new(point_left, point_right)
+                            .into_styled(style)
+                            .draw(display)?;
+                    } else {
+                        let style = PrimitiveStyleBuilder::new()
+                            .fill_color(Rgb565::BLACK)
+                            .build();
+                        Rectangle::new(point_left, point_right)
+                            .into_styled(style)
+                            .draw(display)?;
+                    }
                 }
             }
         }
