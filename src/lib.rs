@@ -18,6 +18,8 @@ pub struct Plane<const N: usize> {
     height: usize,
     color: Rgb888,
     magnification: i32,
+    prev_cnt: i32,
+    static_cnt: i32,
 }
 
 impl<const N: usize> Plane<N> {
@@ -32,6 +34,8 @@ impl<const N: usize> Plane<N> {
             height,
             color: Rgb888::new(0, 255, 0),
             magnification: 1,
+            prev_cnt: 0,
+            static_cnt: 0,
         })
     }
     pub fn from_magnification(width: usize, height: usize, magnification: i32) -> Option<Self> {
@@ -45,6 +49,8 @@ impl<const N: usize> Plane<N> {
             height,
             color: Rgb888::new(0, 255, 0),
             magnification,
+            prev_cnt: 0,
+            static_cnt: 0,
         })
     }
     fn index(&self, x: usize, y: usize) -> usize {
@@ -114,14 +120,29 @@ impl<const N: usize> Plane<N> {
             },
         }
     }
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> bool {
+        let mut changes_cnt = 0;
         for y in 0..self.height {
             for x in 0..self.width {
                 let index = self.index(x, y);
-                self.next[index] = self.is_live(x, y);
+                let live = self.is_live(x, y);
+                if self.next[index] != live {
+                    changes_cnt += 1;
+                }
+                self.next[index] = live;
             }
         }
         core::mem::swap(&mut self.board, &mut self.next);
+        if changes_cnt == self.prev_cnt {
+            self.static_cnt += 1;
+            if self.static_cnt >= 3 {
+                return true;
+            }
+        } else {
+            self.static_cnt = 0;
+        }
+        self.prev_cnt = changes_cnt;
+        false
     }
 
     pub fn draw<D: DrawTarget<Rgb565>>(&self, display: &mut D) -> Result<(), D::Error> {
